@@ -10,3 +10,9 @@ datasets
 openai
 python-dotenv
 tiktoken
+langgraph
+langchain-mcp-adapters
+fastapi
+uvicorn[standard]
+beautifulsoup4
+lxml

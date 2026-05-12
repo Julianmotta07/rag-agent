@@ -1,216 +1,204 @@
-# 🤖 RAG Agent — LangChain + LangSmith + RAGAS
+# RAG Agent — LangChain Expert con MCP Context7 + FastAPI + LangSmith + RAGAS
 
-Agente de preguntas y respuestas basado en **Retrieval-Augmented Generation (RAG)** que indexa documentos locales en una base de datos vectorial (ChromaDB), responde preguntas con GPT-4o-mini, se monitorea en tiempo real con LangSmith y se evalúa con métricas de calidad usando RAGAS.
-
----
-
-## 📐 Arquitectura general
-
-```
-data/docs/        ← Documentos fuente (.txt)
-     ↓
-ingest.py         ← Carga, divide en chunks y genera embeddings
-     ↓
-vectorstore/      ← ChromaDB guarda los vectores localmente
-     ↓
-agent.py          ← RAG chain: recupera contexto + genera respuesta con GPT-4o-mini
-     ↓
-evaluate.py       ← RAGAS evalúa la calidad del sistema con métricas
-     ↑
-LangSmith         ← Monitorea cada traza automáticamente
-```
+Agente especializado en LangChain que combina un vectorstore local (ChromaDB con docs oficiales de python.langchain.com) con herramientas MCP en tiempo real (Context7), expuesto como API REST con FastAPI y monitoreado con LangSmith. La calidad del sistema se evalúa con RAGAS.
 
 ---
 
-## 📁 Estructura del proyecto
+## Arquitectura
 
 ```
-rag_agent/
-├── agent.py            # Cadena RAG principal
-├── ingest.py           # Ingesta de documentos al vectorstore
-├── evaluate.py         # Evaluación con RAGAS
-├── requirements.txt    # Dependencias
+FastAPI (server.py)
+       |
+       v
+LangGraph ReAct Agent (agent.py)
+       |
+       +--- retrieve_langchain_docs  <-- ChromaDB local (docs de python.langchain.com)
+       |
+       +--- Context7 MCP tools       <-- Documentación actualizada en línea
+              (resolve-library-id,
+               get-library-docs)
+       |
+       v
+  GPT-4o-mini sintetiza la respuesta
+       |
+       v
+  LangSmith registra cada traza
+```
+
+El agente usa `retrieve_langchain_docs` primero (barato, rápido). Solo cae en Context7 si la doc local no responde o si se pregunta por una versión específica.
+
+---
+
+## Estructura del proyecto
+
+```
+rag-agent/
+├── agent.py        # Agente LangGraph ReAct con tool RAG + MCP
+├── ingest.py       # Ingesta desde sitemap de python.langchain.com
+├── evaluate.py     # Evaluación con RAGAS
+├── server.py       # API REST con FastAPI
+├── requirements.txt
 ├── data/
-    └── docs/           # Documentos .txt
+│   └── docs/       # Documentos .txt complementarios (opcional)
 ```
 
 ---
 
-## ⚙️ Requisitos previos
+## Requisitos previos
 
-- Python 3.10 o superior
-- Cuenta en [OpenAI](https://platform.openai.com/) con API key activa
+- Python 3.10+
+- **Node.js con npx** — necesario para lanzar el servidor MCP Context7 (`npx -y @upstash/context7-mcp`)
+- Cuenta en [OpenAI](https://platform.openai.com/) con API key y crédito
 - Cuenta en [LangSmith](https://smith.langchain.com/) con API key (gratuita)
 
 ---
 
-## 🚀 Instalación paso a paso
+## Instalación
 
-### 1. Clonar el repositorio
+### 1. Clonar e instalar dependencias
 
 ```bash
 git clone https://github.com/Julianmotta07/rag-agent.git
 cd rag-agent
-```
-
-### 3. Instalar dependencias
-
-```bash
 pip install -r requirements.txt
 ```
 
-### 4. Crear el archivo `.env`
-
-En la raíz del proyecto crea un archivo llamado exactamente `.env` y pega esto adentro con tus propias claves:
+### 2. Crear el archivo `.env`
 
 ```env
-OPENAI_API_KEY=clave-de-openai
+OPENAI_API_KEY=sk-proj-...
 LANGCHAIN_TRACING_V2=true
-LANGCHAIN_API_KEY=clave-de-langsmith
+LANGCHAIN_API_KEY=lsv2_pt_...
 LANGCHAIN_PROJECT=rag-agent-demo
 LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
 ```
 
-### 5. Indexar los documentos (crear el vectorstore)
+Context7 no requiere API key.
+
+### 3. Indexar la documentación de LangChain
 
 ```bash
 python ingest.py
 ```
 
+Descarga y vectoriza la documentación oficial de python.langchain.com. Puede tardar varios minutos dependiendo de la velocidad de red. Solo necesitas correrlo una vez, o cuando quieras actualizar la base de conocimiento.
+
 Salida esperada:
 ```
-Chunks generados: 8
-Vectorstore creado y guardado.
+Cargando documentacion desde sitemap de python.langchain.com...
+Paginas cargadas desde sitemap: 350+
+Chunks generados: 2000+
+Vectorstore creado y guardado. Tiempo: Xs
 ```
 
-Esto crea la carpeta `vectorstore/` con la base de datos ChromaDB local. Solo necesitas correrlo una vez, o cada vez que cambies/agregues documentos en `data/docs/`.
+### 4. Levantar el servidor
 
-### 6. Hacer preguntas al agente
+```bash
+uvicorn server:app --reload --port 8000
+```
+
+El servidor carga el agente y las tools MCP al arrancar (espera ~10s la primera vez por `npx`).
+
+---
+
+## Uso de la API
+
+### Hacer una pregunta
+
+```bash
+# PowerShell
+Invoke-RestMethod -Method POST `
+  -Uri http://localhost:8000/chat `
+  -ContentType "application/json" `
+  -Body '{"question": "Que es LCEL en LangChain?"}'
+
+# curl (bash)
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Que es LCEL en LangChain?"}'
+```
+
+Respuesta:
+```json
+{"answer": "LCEL (LangChain Expression Language) es..."}
+```
+
+### Re-indexar documentos
+
+```bash
+curl -X POST http://localhost:8000/ingest
+```
+
+### Health check
+
+```bash
+curl http://localhost:8000/health
+# {"status":"ok"}
+```
+
+### Documentación interactiva
+
+Con el servidor corriendo, abre [http://localhost:8000/docs](http://localhost:8000/docs) para la UI de Swagger.
+
+---
+
+## Uso como script (sin servidor)
 
 ```bash
 python agent.py
 ```
 
-### 7. Evaluar la calidad del sistema
+---
+
+## Evaluar la calidad con RAGAS
 
 ```bash
 python evaluate.py
 ```
 
-Imprime un DataFrame con las métricas RAGAS para cada pregunta de prueba.
+Evalúa 3 preguntas sobre LangChain con 4 métricas:
 
----
-
-## 🔍 Descripción detallada de cada módulo
-
----
-
-### `ingest.py` — Ingesta y vectorización
-
-Este script prepara la base de conocimiento del agente. Se corre **una vez** (o cuando se actualicen los documentos).
-
-**Flujo interno:**
-
-1. `DirectoryLoader` recorre `data/docs/` buscando archivos `.txt`
-2. `RecursiveCharacterTextSplitter` divide cada documento en chunks de **500 caracteres** con **50 de overlap** (el overlap evita que el contexto se corte en mitad de una idea)
-3. `OpenAIEmbeddings` convierte cada chunk en un vector numérico usando el modelo `text-embedding-3-small`
-4. `Chroma.from_documents` guarda todos los vectores en `./vectorstore/` en disco
-
-**Para agregar tus propios documentos:** simplemente copia archivos `.txt` en `data/docs/` y vuelve a correr `python ingest.py`. Si quieres regenerar desde cero, borra la carpeta `vectorstore/` primero.
-
----
-
-### `agent.py` — Cadena RAG
-
-Implementa la cadena de recuperación y generación usando **LCEL** (LangChain Expression Language), que encadena componentes con el operador `|`.
-
-**Flujo de una pregunta:**
-
-```
-pregunta
-  → retriever busca los 4 chunks más similares en ChromaDB
-  → format_docs los une en un solo bloque de texto (contexto)
-  → PromptTemplate arma el prompt con contexto + pregunta
-  → ChatOpenAI (GPT-4o-mini) genera la respuesta
-  → StrOutputParser extrae el texto limpio
-```
-
-**Parámetros clave:**
-
-| Parámetro | Valor | Por qué |
-|---|---|---|
-| `k=4` en el retriever | Recupera 4 chunks | Balance entre contexto suficiente y no exceder el prompt |
-| `temperature=0` | Respuestas determinísticas | Reproducibilidad en evaluación |
-| Modelo embeddings | `text-embedding-3-small` | Eficiente y económico para RAG |
-| Modelo LLM | `gpt-4o-mini` | Rápido y de bajo costo |
-
-El prompt instruye al modelo a responder solo con el contexto dado y decir "No tengo información suficiente" si no puede responder, evitando alucinaciones.
-
----
-
-### `evaluate.py` — Evaluación con RAGAS
-
-Evalúa la calidad del sistema RAG de forma automatizada usando **RAGAS**, un framework diseñado específicamente para esto.
-
-**Cómo funciona:**
-
-1. Define 3 preguntas de prueba, cada una con una respuesta esperada (`ground_truth`)
-2. Para cada pregunta: invoca el agente para obtener la respuesta, y el retriever para obtener los chunks recuperados
-3. Arma un `Dataset` de HuggingFace con los campos `question`, `answer`, `contexts`, `ground_truth`
-4. Llama a `evaluate()` con las 4 métricas instanciadas
-
-**Las 4 métricas:**
-
-| Métrica | Qué mide | Rango |
-|---|---|---|
-| `Faithfulness` | ¿La respuesta se basa en el contexto recuperado o alucina? | 0 a 1 (1 = sin alucinaciones) |
-| `AnswerRelevancy` | ¿La respuesta es pertinente a la pregunta? | 0 a 1 (1 = muy relevante) |
-| `ContextPrecision` | ¿Los chunks recuperados son útiles para responder? | 0 a 1 (1 = contexto muy preciso) |
-| `ContextRecall` | ¿El contexto cubre lo que dice el ground truth? | 0 a 1 (1 = cobertura total) |
-
-**Salida esperada:** una tabla con el score de cada métrica por pregunta, más el promedio general.
-
-> Las métricas se calculan haciendo llamadas adicionales al LLM, así que consumen tokens de OpenAI.
-
----
-
-### `data/docs/` — Documentos fuente
-
-Carpeta donde viven los documentos que el agente usará como fuente de conocimiento. El archivo `demo.txt` incluido contiene información sobre LangChain, RAG, ChromaDB, RAGAS y LangSmith.
-
-Puedes reemplazarlo o agregar cualquier `.txt` con el contenido que quieras que el agente conozca.
-
----
-
-## 📊 Monitoreo con LangSmith
-
-Con `LANGCHAIN_TRACING_V2=true` en el `.env`, **cada llamada al agente queda registrada automáticamente** en tu cuenta de LangSmith.
-
-En [smith.langchain.com](https://smith.langchain.com) → proyecto `rag-agent-demo` verás:
-
-- Traza completa de cada invocación (cada nodo de la cadena)
-- Latencia de cada paso: retrieval, construcción del prompt, llamada al LLM
-- Tokens consumidos y costo estimado
-- Input y output de cada componente
-- Historial de todas las ejecuciones
-
-Cada persona que corra el proyecto con **su propia** `LANGCHAIN_API_KEY` verá las trazas en **su propia cuenta** de LangSmith. Las trazas no se mezclan entre usuarios.
-
----
-
-## 🧩 Dependencias
-
-| Librería | Uso |
+| Métrica | Qué mide |
 |---|---|
-| `langchain` | Framework principal de orquestación |
-| `langchain-openai` | Embeddings y LLM de OpenAI |
-| `langchain-community` | DirectoryLoader para cargar documentos |
-| `langchain-chroma` | Integración LangChain con ChromaDB |
-| `chromadb` | Base de datos vectorial local |
-| `langsmith` | SDK de monitoreo (el tracing se activa con la env var) |
-| `ragas` | Evaluación del sistema RAG con métricas |
-| `datasets` | Formato de dataset compatible con RAGAS |
-| `python-dotenv` | Carga de variables desde `.env` |
-| `tiktoken` | Conteo de tokens (requerido por langchain-openai) |
+| Faithfulness | ¿La respuesta se basa en el contexto o alucina? |
+| AnswerRelevancy | ¿La respuesta es pertinente a la pregunta? |
+| ContextPrecision | ¿Los chunks recuperados son útiles? |
+| ContextRecall | ¿El contexto cubre el ground truth? |
 
 ---
+
+## Monitoreo con LangSmith
+
+Con `LANGCHAIN_TRACING_V2=true`, cada invocación queda registrada en [smith.langchain.com](https://smith.langchain.com) → proyecto `rag-agent-demo`.
+
+Verás el árbol completo del agente ReAct:
+- Nodo `agent`: decisión del LLM sobre qué tool usar
+- Nodo `tools`: invocación de `retrieve_langchain_docs` o tools de Context7
+- Latencia, tokens y costo por paso
+
+---
+
+## Cómo funciona Context7 (MCP)
+
+Context7 es un servidor MCP que expone documentación actualizada de librerías populares. El agente tiene acceso a dos tools de Context7:
+
+- `resolve-library-id`: busca el ID de una librería por nombre
+- `get-library-docs`: descarga la documentación de esa librería
+
+El agente cae en Context7 cuando la pregunta requiere información que no está en el vectorstore local (por ejemplo, features de versiones recientes de LangGraph).
+
+---
+
+## Dependencias clave
+
+| Librería | Rol |
+|---|---|
+| `langchain` | Framework principal |
+| `langchain-openai` | LLM y embeddings de OpenAI |
+| `langgraph` | Agente ReAct con tool-calling |
+| `langchain-mcp-adapters` | Integración MCP → tools LangChain |
+| `langchain-chroma` | Vectorstore local |
+| `langsmith` | Monitoreo de trazas |
+| `fastapi` + `uvicorn` | Servidor HTTP |
+| `ragas` | Evaluación de calidad del RAG |
+| `beautifulsoup4` + `lxml` | Parseo del sitemap y HTML |
