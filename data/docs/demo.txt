@@ -1,0 +1,16 @@
+LangChain es un framework para desarrollar aplicaciones con modelos de lenguaje.
+Permite conectar LLMs con fuentes de datos externas como bases de datos vectoriales.
+
+RAG (Retrieval-Augmented Generation) es una técnica que combina recuperación de
+información con generación de texto. Primero busca documentos relevantes y luego
+genera una respuesta basada en ellos.
+
+ChromaDB es una base de datos vectorial open source que permite almacenar y buscar
+embeddings de texto de forma eficiente.
+
+RAGAS es un framework para evaluar sistemas RAG. Mide métricas como faithfulness
+(qué tan fiel es la respuesta al contexto), answer relevancy (qué tan relevante es
+la respuesta a la pregunta) y context precision (qué tan preciso es el contexto recuperado).
+
+LangSmith es una plataforma de monitoreo para aplicaciones LangChain. Registra trazas,
+latencia, tokens usados y permite depurar el comportamiento del agente.

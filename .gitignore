@@ -1,0 +1,27 @@
+# Variables de entorno - NUNCA subir esto
+.env
+
+# Base de datos vectorial generada localmente
+vectorstore/
+
+# Cache de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Entornos virtuales
+venv/
+env/
+.venv/
+
+# IDEs
+.vscode/
+.idea/
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
