@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from agent import build_agent
+from agent import build_agent, log_trace
 from ingest import run_ingest
 
 
@@ -12,6 +12,7 @@ async def lifespan(app: FastAPI):
     print("Iniciando agente RAG con MCP Context7...")
     app.state.agent = await build_agent()
     print("Agente listo.")
+    print("[SERVER] Rutas registradas: GET /, GET /health, POST /chat, POST /ingest")
     yield
 
 
@@ -47,8 +48,13 @@ def health():
 async def chat(req: ChatRequest):
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="La pregunta no puede estar vacia.")
+    print(f"\n[SERVER /chat] '{req.question}'")
     result = await app.state.agent.ainvoke({"messages": [("user", req.question)]})
-    answer = result["messages"][-1].content
+    log_trace(result["messages"])
+    raw = result["messages"][-1].content
+    answer = raw if isinstance(raw, str) else " ".join(
+        c.get("text", str(c)) if isinstance(c, dict) else str(c) for c in raw
+    )
     return ChatResponse(answer=answer)
 
 
