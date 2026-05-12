@@ -146,15 +146,6 @@ pregunta
 
 El prompt instruye al modelo a responder solo con el contexto dado y decir "No tengo información suficiente" si no puede responder, evitando alucinaciones.
 
-**Función principal:**
-
-```python
-from agent import ask
-resultado = ask("¿Qué es ChromaDB?")
-```
-
-También puedes importar `qa_chain` y `retriever` directamente si los necesitas por separado (como hace `evaluate.py`).
-
 ---
 
 ### `evaluate.py` — Evaluación con RAGAS
@@ -193,7 +184,7 @@ Puedes reemplazarlo o agregar cualquier `.txt` con el contenido que quieras que 
 
 ## 📊 Monitoreo con LangSmith
 
-Con `LANGCHAIN_TRACING_V2=true` en el `.env`, **cada llamada al agente queda registrada automáticamente** en tu cuenta de LangSmith, sin modificar ninguna línea de código.
+Con `LANGCHAIN_TRACING_V2=true` en el `.env`, **cada llamada al agente queda registrada automáticamente** en tu cuenta de LangSmith.
 
 En [smith.langchain.com](https://smith.langchain.com) → proyecto `rag-agent-demo` verás:
 
